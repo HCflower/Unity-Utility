@@ -1,6 +1,6 @@
 ## **一键文本资源替换工具GUI面板**
 
-![](image.png|align=left)
+!(image.png|align=left)
 
 使用方法：
 

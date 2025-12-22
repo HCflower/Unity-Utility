@@ -1,5 +1,4 @@
-﻿using FFramework.Architecture;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TikTokAdSdk;
 using TTSDK;
@@ -11,7 +10,7 @@ namespace TikTokSDK
     /// <summary>
     /// TikTok OpenAPI - 抖音开放接口
     /// </summary>
-    public class TTOpenAPI : SingletonMono<TTOpenAPI>
+    public class TTOpenAPI : MonoBehaviour
     {
         [Header("分享素材配置")]
         [Tooltip("分享素材 ID -> 必须在 TT 后台配置")]
@@ -38,15 +37,8 @@ namespace TikTokSDK
 
         TTPlayerPrefs playrePrefs;
 
-        protected override void InitializeSingleton()
+        public void Init()
         {
-            // 确保TT.InitSDK初始化成功
-             ADHandler.Instance.InitTTSDK();
-            //TT.InitSDK((code, msg) =>
-            //{
-            //    Debug.Log($"TikTok SDK初始化完成: {code} - {msg}");
-            //});
-
             playrePrefs = TT.PlayerPrefs;
         }
 
@@ -492,47 +484,47 @@ namespace TikTokSDK
 
         #region TTPlayerPrefs 
 
-        public void SetValue(string key, int value)
+        public void SetTTPlayerPrefsValue(string key, int value)
         {
             playrePrefs.SetInt(key, value);
         }
 
-        public void SetValue(string key, float value)
+        public void SetTTPlayerPrefsValue(string key, float value)
         {
             playrePrefs.SetFloat(key, value);
         }
 
-        public void SetValue(string key, string value)
+        public void SetTTPlayerPrefsValue(string key, string value)
         {
             playrePrefs.SetString(key, value);
         }
 
-        public void GetValue(string key, out int value)
+        public void GetTTPlayerPrefsValue(string key, out int value)
         {
             value = playrePrefs.GetInt(key);
         }
 
-        public void GetValue(string key, out float value)
+        public void GetTTPlayerPrefsValue(string key, out float value)
         {
             value = playrePrefs.GetFloat(key);
         }
 
-        public void GetValue(string key, out string value)
+        public void GetTTPlayerPrefsValue(string key, out string value)
         {
             value = playrePrefs.GetString(key);
         }
 
-        public void DeleteKey(string key)
+        public void DeleteTTPlayerPrefsKey(string key)
         {
             playrePrefs.DeleteKey(key);
         }
 
-        public void ClearAllKey()
+        public void ClearAllTTPlayerPrefsKey()
         {
             playrePrefs.DeleteAll();
         }
 
-        public void Save()
+        public void SaveTTPlayerPrefs()
         {
             playrePrefs.Save();
         }

@@ -6,12 +6,16 @@
 /// =========================================================================
 using FFramework.Architecture;
 using System;
+using TikTokSDK;
 using TTSDK;
 using UnityEngine;
 
 namespace TikTokAdSdk
 {
-    public class ADHandler : SingletonMono<ADHandler>
+    // 确保组件
+    [RequireComponent(typeof(MaiDian))]
+    [RequireComponent(typeof(TTOpenAPI))]
+    public class TikTokSDK : SingletonMono<TikTokSDK>
     {
         [Tooltip("App ID 主要是用于标识")] public string appid = "";
 
@@ -38,13 +42,14 @@ namespace TikTokAdSdk
         private const float interstitialAfterRewardSeconds = 60f;
         #endregion
 
-        //#region 其它接口 - 待完善
+        #region 其它接口 - 待完善
 
-        //// 行为埋点
-        //private TrackingPoint trackingPoint = new TrackingPoint();
-        //public TrackingPoint TrackingPoint => trackingPoint;
+        [SerializeField] private MaiDian maiDian;
+        public MaiDian MaiDian => maiDian;
+        [SerializeField] private TTOpenAPI ttOpenAPI;
+        public TTOpenAPI TTOpenAPI => ttOpenAPI;
 
-        //#endregion
+        #endregion
 
         #region 初始化方法
 
@@ -52,8 +57,14 @@ namespace TikTokAdSdk
         {
             gameStartTime = Time.time;
 
-            InitTTSDK();
+            // 直接赋值
+            maiDian = GetComponent<MaiDian>();
+            maiDian.Init(appid); // 初始化埋点
 
+            ttOpenAPI = GetComponent<TTOpenAPI>();
+            ttOpenAPI.Init();   // 初始化TTOpenAPI
+
+            InitTTSDK();
             InitTTBannerStyle();
         }
 
@@ -117,6 +128,9 @@ namespace TikTokAdSdk
                 return;
             }
 
+            // TODO：发送用户关键行为
+            MaiDian?.SendGameAddiction();
+
             CreateRewardedVideoAdParam param = new CreateRewardedVideoAdParam
             {
                 AdUnitId = rewardedVideoId,
@@ -130,6 +144,8 @@ namespace TikTokAdSdk
                     Debug.Log($"激励视频广告观看完成，发放奖励，次数=>{count}");
                     lastRewardedAdTime = Time.time;
                     onSuccess?.Invoke();
+                    // TODO：发送用户关键行为
+                    MaiDian?.SendGameAddiction();
                 }
                 else
                 {
@@ -149,8 +165,13 @@ namespace TikTokAdSdk
             rewardedVideoAd.OnLoad += () =>
             {
                 Debug.Log("激励视频广告加载成功，准备展示");
-                // TODO: 发送用户行为 / LTROI
                 rewardedVideoAd.Show();
+
+                // TODO: 发送用户行为 / LTROI
+                Debug.LogWarning("第一次尝试roi 回调 game_addition 方法回传");
+                MaiDian.SendGameAddiction();
+                Debug.LogWarning("第二次尝试roi 回调 SendLTROI 方法回传");
+                MaiDian.SendLTROI();
             };
 
             Debug.Log("开始加载激励视频广告");
@@ -166,6 +187,9 @@ namespace TikTokAdSdk
                 onFailure?.Invoke();
                 return;
             }
+
+            // TODO：发送用户关键行为
+            MaiDian?.SendGameAddiction();
 
             if (rewardMessages == null || rewardMessages.Length == 0)
             {
@@ -194,6 +218,9 @@ namespace TikTokAdSdk
                     Debug.Log($"激励视频广告观看完成，发放奖励，次数=>{count}");
                     lastRewardedAdTime = Time.time;
                     onSuccess?.Invoke();
+
+                    // TODO：发送用户关键行为
+                    MaiDian?.SendGameAddiction();
                 }
                 else
                 {
@@ -214,6 +241,10 @@ namespace TikTokAdSdk
             {
                 Debug.Log("激励视频广告加载成功，准备展示");
                 rewardedVideoAd.Show();
+
+                // TODO: 发送用户行为 / LTROI
+                MaiDian.SendGameAddiction();
+                MaiDian.SendLTROI();
             };
 
             Debug.Log($"开始加载再得激励视频广告，次数：{rewardTimes}");
@@ -260,9 +291,6 @@ namespace TikTokAdSdk
                     Debug.Log("Banner广告加载完成");
                     bannerAd?.Show();
                 };
-
-                // 移除这里的重复 Show，交给 OnLoad 触发
-                // bannerAd.Show();
             }
         }
 

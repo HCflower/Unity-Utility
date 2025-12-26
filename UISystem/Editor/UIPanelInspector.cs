@@ -78,13 +78,39 @@ namespace FFramework.Editor
             DrawDashedBorder(dragAreaRect);
             // 绘制标签
             GUI.Label(dragAreaRect, " 字段管理", EditorStyles.boldLabel);
-            // 在虚线范围最右端添加一个“+”字符
+            // 在虚线范围最右端添加一个"+"字符
             var plusRect = new Rect(dragAreaRect.xMax - 18, dragAreaRect.y, 18, dragAreaRect.height);
             GUI.Label(plusRect, "+", EditorStyles.boldLabel);
             // 只在这个小区域处理拖拽
             HandleDragAndDrop(dragAreaRect);
 
             GUILayout.FlexibleSpace();
+            // 用图标按钮表示锚点全覆盖
+            GUIContent anchorIcon = EditorGUIUtility.IconContent("RectTransformBlueprint"); // Unity自带锚点图标
+            anchorIcon.tooltip = "锚点全覆盖";
+            GUIStyle iconBtnStyle = new GUIStyle(GUI.skin.button)
+            {
+                padding = new RectOffset(2, 1, 1, 2),
+                alignment = TextAnchor.MiddleCenter // 图标居中
+            };
+            if (GUILayout.Button(anchorIcon, iconBtnStyle, GUILayout.Width(20), GUILayout.Height(20)))
+            {
+                // 设置RectTransform锚点为全覆盖
+                if (panel != null && panel.transform is RectTransform rect)
+                {
+                    Undo.RecordObject(rect, "RectTransform锚点全覆盖");
+                    rect.anchorMin = Vector2.zero;
+                    rect.anchorMax = Vector2.one;
+                    rect.offsetMin = Vector2.zero;
+                    rect.offsetMax = Vector2.zero;
+                    EditorUtility.SetDirty(rect);
+                    Debug.Log("已将RectTransform锚点设置为全覆盖模式");
+                }
+                else
+                {
+                    Debug.LogWarning("当前对象没有RectTransform,无法设置锚点全覆盖");
+                }
+            }
             if (GUILayout.Button("设置面板名", GUILayout.Width(70), GUILayout.Height(20)))
             {
                 if (panel != null)
@@ -116,12 +142,137 @@ namespace FFramework.Editor
             {
                 enterChildren = false;
                 if (prop.propertyPath == "m_Script") continue;
-                EditorGUILayout.PropertyField(prop, true);
+
+                // 绘制字段及删除按钮
+                DrawPropertyFieldWithDeleteButton(prop);
             }
             EditorGUI.indentLevel--;
             serializedObject.ApplyModifiedProperties();
 
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// 绘制带删除按钮的属性字段
+        /// </summary>
+        private void DrawPropertyFieldWithDeleteButton(SerializedProperty prop)
+        {
+            // 获取属性的完整高度(包括Header等特性)
+            float propertyHeight = EditorGUI.GetPropertyHeight(prop, true);
+
+            // 判断是否有装饰器(Header等特性)
+            bool hasDecorator = propertyHeight > EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
+
+            float buttonWidth = 20;
+            float buttonSpacing = 2;
+
+            if (hasDecorator)
+            {
+                // 有装饰器的情况,需要手动布局
+                Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
+
+                // 绘制属性(包含装饰器)，限制宽度为按钮预留空间
+                Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
+                EditorGUI.PropertyField(propertyRect, prop, true);
+
+                // 绘制删除按钮 - 与最后一行对齐
+                Rect buttonRect = new Rect(
+                    fullRect.xMax - buttonWidth,
+                    fullRect.yMax - EditorGUIUtility.singleLineHeight,
+                    buttonWidth,
+                    EditorGUIUtility.singleLineHeight
+                );
+
+                Color oldColor = GUI.backgroundColor;
+                GUI.backgroundColor = Color.red;
+                if (GUI.Button(buttonRect, "x"))
+                {
+                    string fieldName = prop.name;
+                    if (EditorUtility.DisplayDialog(
+                        "删除字段",
+                        $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
+                        "删除", "取消"))
+                    {
+                        RemoveFieldFromScript(fieldName);
+                    }
+                }
+                GUI.backgroundColor = oldColor;
+            }
+            else
+            {
+                // 普通字段，也使用 Rect 方式统一布局
+                Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
+
+                // 绘制属性
+                Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
+                EditorGUI.PropertyField(propertyRect, prop, true);
+
+                // 绘制删除按钮 - 位置和大小与有装饰器的情况完全一致
+                Rect buttonRect = new Rect(
+                    fullRect.xMax - buttonWidth,
+                    fullRect.y,
+                    buttonWidth,
+                    EditorGUIUtility.singleLineHeight
+                );
+
+                Color oldColor = GUI.backgroundColor;
+                GUI.backgroundColor = Color.red;
+                if (GUI.Button(buttonRect, "x"))
+                {
+                    string fieldName = prop.name;
+                    if (EditorUtility.DisplayDialog(
+                        "删除字段",
+                        $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
+                        "删除", "取消"))
+                    {
+                        RemoveFieldFromScript(fieldName);
+                    }
+                }
+                GUI.backgroundColor = oldColor;
+            }
+        }
+
+        /// <summary>
+        /// 从脚本中移除字段定义
+        /// </summary>
+        private void RemoveFieldFromScript(string fieldName)
+        {
+            MonoScript script = MonoScript.FromMonoBehaviour(panel);
+            if (script == null)
+            {
+                EditorUtility.DisplayDialog("错误", "无法定位面板脚本文件。", "确定");
+                return;
+            }
+
+            string scriptPath = AssetDatabase.GetAssetPath(script);
+            if (string.IsNullOrEmpty(scriptPath) || !System.IO.File.Exists(scriptPath))
+            {
+                EditorUtility.DisplayDialog("错误", "脚本文件不存在。", "确定");
+                return;
+            }
+
+            try
+            {
+                string code = System.IO.File.ReadAllText(scriptPath);
+                string modifiedCode = ScriptModifier.RemoveFieldFromCode(code, fieldName);
+
+                if (modifiedCode == code)
+                {
+                    EditorUtility.DisplayDialog("警告", $"未找到字段 '{fieldName}' 的定义。", "确定");
+                    return;
+                }
+
+                System.IO.File.WriteAllText(scriptPath, modifiedCode);
+                AssetDatabase.Refresh();
+
+                Debug.Log($"成功删除字段: {fieldName}");
+                Repaint();
+            }
+            catch (System.Exception ex)
+            {
+                EditorUtility.DisplayDialog("删除字段失败",
+                    $"修改脚本文件时出错：\n{ex.Message}", "确定");
+            }
         }
 
         /// <summary>
@@ -229,7 +380,7 @@ namespace FFramework.Editor
             }
         }
 
-        // 新增：处理拖拽对象的方法
+        // 处理拖拽对象的方法
         private void ProcessDraggedObjects(UnityEngine.Object[] draggedObjects)
         {
             if (panel == null) return;
@@ -238,15 +389,21 @@ namespace FFramework.Editor
             var go = draggedObjects.OfType<GameObject>().FirstOrDefault();
             if (go == null) return;
 
-            if (TryCreateSerializedFieldForGameObject(go))
+            // 延迟处理，避免在 OnGUI 中直接调用模态窗口
+            EditorApplication.delayCall += () =>
             {
-                Debug.Log($"成功为 {go.name} 创建了序列化字段");
-                EditorUtility.SetDirty(panel);
-                Repaint();
-            }
+                if (TryCreateSerializedFieldForGameObject(go))
+                {
+                    EditorUtility.SetDirty(panel);
+                    Repaint();
+                }
+            };
+
+            // 立即退出当前 GUI 绘制，防止布局栈错乱
+            GUIUtility.ExitGUI();
         }
 
-        // 修改后的创建字段方法，返回是否成功
+        // 创建字段方法，返回是否成功
         private bool TryCreateSerializedFieldForGameObject(GameObject go)
         {
             if (panel == null || go == null)
@@ -279,38 +436,49 @@ namespace FFramework.Editor
                 return false;
             }
 
-            Component chosen = components.Count == 1
-               ? components[0]
-               : SelectComponentWindow.Prompt(components, go.name);
-
-            if (chosen == null)
+            if (components.Count == 1)
             {
-                // 删除了自动回退到默认组件的逻辑，如果用户取消或未选择，则不创建字段
-                Debug.Log($"取消为对象 '{go.name}' 创建字段");
-                return false;
+                // 只有一个组件，直接创建
+                return CreateNewSerializedField(ToSafeIdentifier(go.name), components[0]);
             }
-
-            string fieldName = ToSafeIdentifier(go.name);
-
-            // 检查字段是否已存在
-            var existingField = panel.GetType().GetField(fieldName,
-                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-
-            if (existingField != null && existingField.FieldType.IsAssignableFrom(chosen.GetType()))
+            else
             {
-                // 如果字段已存在且类型匹配，直接赋值
-                Undo.RecordObject(panel, "赋值序列化字段");
-                existingField.SetValue(panel, chosen);
-                EditorUtility.SetDirty(panel);
-                Debug.Log($"已为现有字段赋值: {fieldName} => {chosen.GetType().Name}");
+                // 多个组件，弹窗选择，使用回调
+                SelectComponentWindow.Prompt(components, go.name, (chosen) =>
+                {
+                    if (chosen == null)
+                    {
+                        Debug.Log($"取消为对象 '{go.name}' 创建字段");
+                        return;
+                    }
+
+                    string fieldName = ToSafeIdentifier(go.name);
+
+                    // 检查字段是否已存在
+                    var existingField = panel.GetType().GetField(fieldName,
+                        BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+                    if (existingField != null && existingField.FieldType.IsAssignableFrom(chosen.GetType()))
+                    {
+                        Undo.RecordObject(panel, "赋值序列化字段");
+                        existingField.SetValue(panel, chosen);
+                        EditorUtility.SetDirty(panel);
+                        Debug.Log($"已为现有字段赋值: {fieldName} => {chosen.GetType().Name}");
+                    }
+                    else
+                    {
+                        CreateNewSerializedField(fieldName, chosen);
+                    }
+
+                    Repaint();
+                });
+
+                // 回调式，不阻塞，直接返回
                 return true;
             }
-
-            // 创建新字段
-            return CreateNewSerializedField(fieldName, chosen);
         }
 
-        // 新增：创建新序列化字段的方法
+        // 创建新序列化字段的方法
         private bool CreateNewSerializedField(string fieldName, Component component)
         {
             MonoScript script = MonoScript.FromMonoBehaviour(panel);
@@ -332,7 +500,7 @@ namespace FFramework.Editor
                 string code = System.IO.File.ReadAllText(scriptPath);
                 string typeName = component.GetType().Name;
                 string usingNamespace = component.GetType().Namespace;
-                string fieldLine = $"         public {typeName} {fieldName};";
+                string fieldLine = $"         [SerializeField] private {typeName} {fieldName};";
 
                 string newCode = ScriptModifier.InsertFieldIntoRegion(code, fieldLine, regionName: "字段");
                 newCode = ScriptModifier.EnsureUsing(newCode, usingNamespace);

@@ -1,4 +1,4 @@
-﻿// =============================================================
+// =============================================================
 // 描述：UI系统管理器（集成UIRoot功能）
 // 作者：HCFlower
 // 创建时间：2025-11-15 18:49:00
@@ -205,14 +205,10 @@ namespace FFramework.Utility
             Transform layerTransform = GetUILayer(layer);
             if (layerTransform == null)
             {
-                Debug.LogWarning($"[UISystem] UILayer {layer} 为 null，尝试重新初始化 UISystem");
+                // 如果层级为空，尝试重新初始化
                 SetupUIRoot();
                 layerTransform = GetUILayer(layer);
-                if (layerTransform == null)
-                {
-                    Debug.LogError($"[UISystem] 重新初始化后 UILayer {layer} 仍为 null，无法实例化面板 {panelName}");
-                    return null;
-                }
+                if (layerTransform == null) return null;
             }
 
             GameObject panelObject;

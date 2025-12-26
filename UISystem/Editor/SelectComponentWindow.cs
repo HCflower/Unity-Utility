@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -9,25 +10,23 @@ namespace FFramework.Editor
     {
         private List<Component> components;
         private string objectName;
-        private static Component modalResult;
-
+        private Component result;  // 改为实例变量
+        private Action<Component> onSelected;
         // IMGUI specific fields
         private int selectedIndex = 0;
         private GUIStyle titleStyle, subTitleStyle, itemStyle, selectedItemStyle, windowBackgroundStyle;
 
-        public static Component Prompt(List<Component> comps, string objName)
+        public static void Prompt(List<Component> comps, string objName, Action<Component> onSelected)
         {
-            modalResult = null;
             var win = CreateInstance<SelectComponentWindow>();
             win.titleContent = new GUIContent("选择组件类型");
-            win.minSize = new Vector2(320, 120);
+            win.minSize = new Vector2(280, 100);
 
             win.components = comps;
             win.objectName = objName;
+            win.onSelected = onSelected;
 
-            win.ShowModal(); // 关键：用ShowModal阻塞等待用户选择
-
-            return modalResult;
+            win.Show();
         }
 
         private void OnEnable()
@@ -74,27 +73,35 @@ namespace FFramework.Editor
 
         public void OnGUI()
         {
+            // 防止布局栈错乱
+            if (components == null || components.Count == 0)
+                return;
+
             // 绘制深色背景
             GUI.Box(new Rect(0, 0, position.width, position.height), GUIContent.none, windowBackgroundStyle);
 
-            EditorGUILayout.BeginVertical(new GUIStyle { padding = new RectOffset(5, 5, 15, 15) });
+            EditorGUILayout.BeginVertical(new GUIStyle { padding = new RectOffset(5, 5, 0, 0) });
 
             // --- 标题区域 ---
             EditorGUILayout.LabelField($"对象: {objectName}", titleStyle);
             EditorGUILayout.LabelField("请选择要绑定的组件类型:", subTitleStyle);
-            EditorGUILayout.Space(2);
 
             // --- 下拉选框区域 ---
             string[] options = components.Select(c => c != null ? c.GetType().Name : "空").ToArray();
+
+            // 确保 selectedIndex 在有效范围内
+            selectedIndex = Mathf.Clamp(selectedIndex, 0, options.Length - 1);
             selectedIndex = EditorGUILayout.Popup(selectedIndex, options, GUILayout.Height(30));
+
             // --- 按钮区域 ---
             EditorGUILayout.BeginHorizontal();
             float btnWidth = (position.width - 20) / 2f; // 15+15内边距+10间隔
             if (GUILayout.Button("取消", GUILayout.Width(btnWidth), GUILayout.Height(24)))
             {
+                onSelected?.Invoke(null);
                 Close();
             }
-            GUILayout.Space(5);
+            GUILayout.Space(1);
             if (GUILayout.Button("确定", GUILayout.Width(btnWidth), GUILayout.Height(24)))
             {
                 ConfirmSelection();
@@ -137,9 +144,15 @@ namespace FFramework.Editor
 
         private void ConfirmSelection()
         {
-            if (selectedIndex >= 0 && selectedIndex < components.Count)
+            if (components != null && selectedIndex >= 0 && selectedIndex < components.Count)
             {
-                modalResult = components[selectedIndex];
+                var selectedComponent = components[selectedIndex];
+                onSelected?.Invoke(selectedComponent);
+                Close();
+            }
+            else
+            {
+                onSelected?.Invoke(null);
                 Close();
             }
         }

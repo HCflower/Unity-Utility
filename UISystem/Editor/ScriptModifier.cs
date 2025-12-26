@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace FFramework.Editor
@@ -71,6 +72,60 @@ namespace FFramework.Editor
             sb.AppendLine(usingLine);
             sb.Append(code, insertPos, code.Length - insertPos);
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// 从代码中移除指定的字段定义
+        /// </summary>
+        public static string RemoveFieldFromCode(string code, string fieldName)
+        {
+            if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(fieldName))
+                return code;
+
+            var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var resultLines = new List<string>();
+            bool removed = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+
+                // 检查该行是否包含要删除的字段定义
+                // 匹配模式：[修饰符] [类型] fieldName;
+                if (IsFieldDefinitionLine(line, fieldName))
+                {
+                    removed = true;
+                    // 跳过这一行，同时移除前面的空行（最多1行）
+                    if (resultLines.Count > 0 && string.IsNullOrWhiteSpace(resultLines[resultLines.Count - 1]))
+                    {
+                        resultLines.RemoveAt(resultLines.Count - 1);
+                    }
+                    continue;
+                }
+
+                resultLines.Add(line);
+            }
+
+            if (!removed)
+                return code;
+
+            return string.Join("\n", resultLines);
+        }
+
+        /// <summary>
+        /// 判断是否是要删除的字段定义行
+        /// </summary>
+        private static bool IsFieldDefinitionLine(string line, string fieldName)
+        {
+            // 去除行首空格后检查
+            string trimmedLine = line.TrimStart();
+
+            // 匹配字段定义：public/private/protected [static] [readonly] TypeName fieldName;
+            string pattern = @"\b(public|private|protected|internal).*\b" +
+                           System.Text.RegularExpressions.Regex.Escape(fieldName) +
+                           @"\s*[=;]";
+
+            return System.Text.RegularExpressions.Regex.IsMatch(trimmedLine, pattern);
         }
     }
 }

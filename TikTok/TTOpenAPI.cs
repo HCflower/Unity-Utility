@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using TikTokAdSdk;
 using TTSDK;
 using TTSDK.UNBridgeLib.LitJson;
 using UnityEngine;

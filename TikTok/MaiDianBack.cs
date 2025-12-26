@@ -5,7 +5,7 @@ using UnityEngine;
 using System;
 using TTSDK;
 
-namespace TikTokAdSdk
+namespace TikTokSdk
 {
     public class MaiDian : MonoBehaviour
     {

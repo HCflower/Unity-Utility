@@ -10,12 +10,12 @@ using TikTokSDK;
 using TTSDK;
 using UnityEngine;
 
-namespace TikTokAdSdk
+namespace TikTokSdk
 {
     // 确保组件
     [RequireComponent(typeof(MaiDian))]
     [RequireComponent(typeof(TTOpenAPI))]
-    public class TikTokSDK : SingletonMono<TikTokSDK>
+    public class TikTokAPI : SingletonMono<TikTokAPI>
     {
         [Tooltip("App ID 主要是用于标识")] public string appid = "";
 
@@ -55,6 +55,7 @@ namespace TikTokAdSdk
 
         protected override void InitializeSingleton()
         {
+            InitTTSDK();
             gameStartTime = Time.time;
 
             // 直接赋值
@@ -64,7 +65,6 @@ namespace TikTokAdSdk
             ttOpenAPI = GetComponent<TTOpenAPI>();
             ttOpenAPI.Init();   // 初始化TTOpenAPI
 
-            InitTTSDK();
             InitTTBannerStyle();
         }
 

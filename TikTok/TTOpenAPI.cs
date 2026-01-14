@@ -4,7 +4,7 @@ using TTSDK;
 using TTSDK.UNBridgeLib.LitJson;
 using UnityEngine;
 
-namespace TikTokSDK
+namespace TikTokAdSdk
 {
     /// <summary>
     /// TikTok OpenAPI - 抖音开放接口

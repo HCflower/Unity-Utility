@@ -2,7 +2,7 @@
 // 描述：创建UI面板
 // 作者：HCFlower
 // 创建时间：2025-12-13 12:00:00
-// 版本：1.0.1
+// 版本：1.0.2
 // =============================================================
 using System.IO;
 using UnityEditor;
@@ -15,10 +15,13 @@ namespace FFramework.Editor
     {
         // 默认保存位置（相对 Assets）
         private const string DefaultRelativeSavePath = "Assets/Game/Scripts/ViewController/UI";
+        // 默认作者名称（可以从 EditorPrefs 中读取）
+        private const string AuthorNameKey = "FFramework.UI.AuthorName";
 
         // UI Elements
         private TextField namespaceField;
         private TextField panelNameField;
+        private TextField authorField;
         private TextField savePathField;
         private Button browseButton;
         private Button createButton;
@@ -30,7 +33,7 @@ namespace FFramework.Editor
         public static void OpenWindow()
         {
             var window = GetWindow<CreateUIPanel>(false, "创建UI面板");
-            window.minSize = new Vector2(500, 280);
+            window.minSize = new Vector2(480, 300);
             window.Show();
         }
 
@@ -58,7 +61,7 @@ namespace FFramework.Editor
             titleLabel.AddToClassList("title-label");
             titleContainer.Add(titleLabel);
 
-            var helpBox = new HelpBox("请输入命名空间、面板名称和保存位置。创建前将检查是否存在同名脚本。", HelpBoxMessageType.Info);
+            var helpBox = new HelpBox("请输入命名空间、面板名称、作者名称和保存位置。创建前将检查是否存在同名脚本。", HelpBoxMessageType.Info);
             titleContainer.Add(helpBox);
 
             root.Add(titleContainer);
@@ -78,6 +81,12 @@ namespace FFramework.Editor
             panelNameField.value = "ExamplePanel";
             panelNameField.RegisterValueChangedCallback(OnInputChanged);
             inputContainer.Add(panelNameField);
+
+            // 作者名称输入
+            authorField = new TextField("作者名称:");
+            authorField.value = EditorPrefs.GetString(AuthorNameKey, "HCFlower");
+            authorField.RegisterValueChangedCallback(OnAuthorChanged);
+            inputContainer.Add(authorField);
 
             // 保存路径输入
             var pathContainer = new VisualElement();
@@ -140,12 +149,20 @@ namespace FFramework.Editor
             UpdatePreview();
         }
 
+        private void OnAuthorChanged(ChangeEvent<string> evt)
+        {
+            // 保存作者名称到 EditorPrefs，下次打开时自动填充
+            EditorPrefs.SetString(AuthorNameKey, evt.newValue);
+            UpdatePreview();
+        }
+
         private void UpdatePreview()
         {
             if (previewLabel == null || statusHelp == null) return;
 
             string panelName = panelNameField?.value ?? "";
             string savePath = savePathField?.value ?? "";
+            string author = authorField?.value ?? "";
 
             if (string.IsNullOrWhiteSpace(panelName))
             {
@@ -165,10 +182,16 @@ namespace FFramework.Editor
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(author))
+            {
+                statusHelp.text = "建议填写作者名称";
+                statusHelp.messageType = HelpBoxMessageType.Warning;
+            }
+
             string filename = $"{panelName}.cs";
             string fullPath = PathCombine(savePath, filename);
 
-            previewLabel.text = $"文件名: {filename}\n完整路径: {fullPath}";
+            previewLabel.text = $"文件名: {filename}\n完整路径: {fullPath}\n作者: {(string.IsNullOrWhiteSpace(author) ? "未填写" : author)}";
 
             // 检查文件是否存在
             bool fileExists = AssetDatabase.LoadAssetAtPath<TextAsset>(fullPath) != null || File.Exists(fullPath);
@@ -180,8 +203,16 @@ namespace FFramework.Editor
             }
             else
             {
-                statusHelp.text = "可以创建";
-                statusHelp.messageType = HelpBoxMessageType.Info;
+                if (string.IsNullOrWhiteSpace(author))
+                {
+                    statusHelp.text = "可以创建（建议填写作者名称）";
+                    statusHelp.messageType = HelpBoxMessageType.Warning;
+                }
+                else
+                {
+                    statusHelp.text = "可以创建";
+                    statusHelp.messageType = HelpBoxMessageType.Info;
+                }
                 createButton.SetEnabled(true);
             }
         }
@@ -210,6 +241,8 @@ namespace FFramework.Editor
         private void ResetToDefault()
         {
             savePathField.value = DefaultRelativeSavePath;
+            // 重置作者名称为默认值或 EditorPrefs 中保存的值
+            authorField.value = EditorPrefs.GetString(AuthorNameKey, "HCFlower");
             UpdatePreview();
         }
 
@@ -217,6 +250,7 @@ namespace FFramework.Editor
         {
             string namespaceName = namespaceField.value;
             string panelName = panelNameField.value;
+            string author = authorField.value;
             string savePath = savePathField.value;
 
             // 基本校验
@@ -245,6 +279,16 @@ namespace FFramework.Editor
                 return;
             }
 
+            // 如果作者名称为空，显示确认对话框
+            if (string.IsNullOrWhiteSpace(author))
+            {
+                if (!EditorUtility.DisplayDialog("确认创建", "作者名称为空，确定要继续创建吗？", "继续创建", "取消"))
+                {
+                    return;
+                }
+                author = "Unknown";
+            }
+
             string targetDir = savePath.Replace('\\', '/');
             string targetFile = PathCombine(targetDir, $"{panelName}.cs");
 
@@ -259,7 +303,7 @@ namespace FFramework.Editor
             EnsureDirectory(targetDir);
 
             // 写入模板
-            string content = GeneratePanelTemplate(namespaceName.Trim(), panelName.Trim());
+            string content = GeneratePanelTemplate(namespaceName.Trim(), panelName.Trim(), author.Trim());
             File.WriteAllText(targetFile, content);
 
             AssetDatabase.Refresh();
@@ -321,13 +365,13 @@ namespace FFramework.Editor
             return true;
         }
 
-        private static string GeneratePanelTemplate(string ns, string className)
+        private static string GeneratePanelTemplate(string ns, string className, string author)
         {
             // 生成继承 UIPanel 的模板代码
             return
 $@"// =============================================================
 // 描述：{className} UI面板
-// 作者：HCFlower
+// 作者：{author}
 // 创建时间：{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}
 // 版本：1.0.0
 // =============================================================

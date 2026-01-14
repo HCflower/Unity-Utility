@@ -2,7 +2,7 @@
 // 描述：UI检查器面板
 // 作者：HCFlower
 // 创建时间：2025-11-15 18:49:00
-// 版本：1.0.0
+// 版本：1.0.5
 // =============================================================
 using System.Collections.Generic;
 using UnityEngine.EventSystems;
@@ -18,9 +18,6 @@ using TMPro;
 
 namespace FFramework.Editor
 {
-    /// <summary>
-    /// UIPanel 检视器 - UI事件检查器
-    /// </summary>
     [CustomEditor(typeof(UIPanel), true)]
     public class UIPanelInspector : UnityEditor.Editor
     {
@@ -39,6 +36,7 @@ namespace FFramework.Editor
         #endregion
 
         #region Unity Methods
+
         public override void OnInspectorGUI()
         {
             panel = (UIPanel)target;
@@ -48,23 +46,35 @@ namespace FFramework.Editor
                 return;
             }
 
+            // 使用自定义边距样式修正左右边距不一致问题
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(-15); // 减少左边距
+            EditorGUILayout.BeginVertical();
+
             scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
 
             DrawSerializedProperties();
-            EditorGUILayout.Space(2);
             DrawSummarySection();
 
             EditorGUILayout.EndScrollView();
+
+            EditorGUILayout.EndVertical();
+            GUILayout.Space(-4); // 增加右边距
+            EditorGUILayout.EndHorizontal();
         }
+
         #endregion
 
-        #region Main Drawing Methods
+        #region 序列化属性区域
 
         /// <summary>
         /// 绘制序列化属性区域
         /// </summary>
         private void DrawSerializedProperties()
         {
+            // 获取整个面板区域的起始位置
+            Rect panelStartRect = GUILayoutUtility.GetRect(0, 0);
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUILayout.Space(2);
 
@@ -72,26 +82,17 @@ namespace FFramework.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.Space(2);
 
-            // 添加一个专门的拖拽区域标识 - 使用虚线边框
-            var dragAreaRect = GUILayoutUtility.GetRect(new GUIContent("拖拽区域"), EditorStyles.boldLabel, GUILayout.Width(220), GUILayout.Height(20));
-            // 绘制虚线边框
-            DrawDashedBorder(dragAreaRect);
-            // 绘制标签
-            GUI.Label(dragAreaRect, " 字段管理", EditorStyles.boldLabel);
-            // 在虚线范围最右端添加一个"+"字符
-            var plusRect = new Rect(dragAreaRect.xMax - 18, dragAreaRect.y, 18, dragAreaRect.height);
-            GUI.Label(plusRect, "+", EditorStyles.boldLabel);
-            // 只在这个小区域处理拖拽
-            HandleDragAndDrop(dragAreaRect);
+            // 标题标签 - 不再使用虚线边框
+            EditorGUILayout.LabelField("字段管理 (支持拖拽UI对象)", EditorStyles.boldLabel, GUILayout.Width(220));
 
             GUILayout.FlexibleSpace();
             // 用图标按钮表示锚点全覆盖
-            GUIContent anchorIcon = EditorGUIUtility.IconContent("RectTransformBlueprint"); // Unity自带锚点图标
+            GUIContent anchorIcon = EditorGUIUtility.IconContent("RectTransformBlueprint");
             anchorIcon.tooltip = "锚点全覆盖";
             GUIStyle iconBtnStyle = new GUIStyle(GUI.skin.button)
             {
                 padding = new RectOffset(2, 1, 1, 2),
-                alignment = TextAnchor.MiddleCenter // 图标居中
+                alignment = TextAnchor.MiddleCenter
             };
             if (GUILayout.Button(anchorIcon, iconBtnStyle, GUILayout.Width(20), GUILayout.Height(20)))
             {
@@ -132,6 +133,9 @@ namespace FFramework.Editor
 
             EditorGUILayout.Space(5);
 
+            // 获取整个属性区域的起始位置
+            Rect propertiesStartRect = GUILayoutUtility.GetRect(0, 0);
+
             // 绘制属性
             serializedObject.Update();
             SerializedProperty prop = serializedObject.GetIterator();
@@ -149,7 +153,22 @@ namespace FFramework.Editor
             EditorGUI.indentLevel--;
             serializedObject.ApplyModifiedProperties();
 
+            // 获取整个属性区域的结束位置
+            Rect propertiesEndRect = GUILayoutUtility.GetRect(0, 0);
+            float propertiesEndY = propertiesEndRect.y;
+
             EditorGUILayout.EndVertical();
+
+            // 计算整个面板区域的矩形（从面板开始到结束）
+            Rect fullPanelRect = new Rect(
+                panelStartRect.x,
+                panelStartRect.y,
+                propertiesStartRect.width,
+                propertiesEndY - panelStartRect.y
+            );
+
+            // 在整个区域处理拖拽
+            HandleDragAndDrop(fullPanelRect);
         }
 
         /// <summary>
@@ -157,79 +176,234 @@ namespace FFramework.Editor
         /// </summary>
         private void DrawPropertyFieldWithDeleteButton(SerializedProperty prop)
         {
-            // 获取属性的完整高度(包括Header等特性)
-            float propertyHeight = EditorGUI.GetPropertyHeight(prop, true);
+            // 计算完整高度与“仅头部”(含装饰器+标签行)高度
+            float fullHeight = EditorGUI.GetPropertyHeight(prop, true);
+            float headerHeight = EditorGUI.GetPropertyHeight(prop, false);
 
-            // 判断是否有装饰器(Header等特性)
-            bool hasDecorator = propertyHeight > EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
+            float buttonWidth = 20f;
+            float buttonSpacing = 2f;
 
-            float buttonWidth = 20;
-            float buttonSpacing = 2;
+            // 预留按钮空间的整体区域
+            Rect fullRect = EditorGUILayout.GetControlRect(true, fullHeight);
 
+            // 左侧属性区（减去按钮宽度与间距）
+            Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullHeight);
+            EditorGUI.PropertyField(propertyRect, prop, true);
+
+            // 将按钮锚定到“标签行”的垂直位置（头部高度 - 单行高度）
+            float labelY = fullRect.y + Mathf.Max(0f, headerHeight - EditorGUIUtility.singleLineHeight);
+            Rect buttonRect = new Rect(fullRect.xMax - buttonWidth, labelY, buttonWidth, EditorGUIUtility.singleLineHeight);
+
+            DrawDeleteButton(buttonRect, prop.name);
+        }
+
+        // 统一的删除按钮绘制与逻辑
+        private void DrawDeleteButton(Rect buttonRect, string fieldName)
+        {
+            Color oldColor = GUI.backgroundColor;
+            GUI.backgroundColor = Color.red;
+            if (GUI.Button(buttonRect, "x"))
+            {
+                if (EditorUtility.DisplayDialog(
+                    "删除字段",
+                    $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
+                    "删除", "取消"))
+                {
+                    RemoveFieldFromScript(fieldName);
+                }
+            }
+            GUI.backgroundColor = oldColor;
+        }
+
+        /// <summary>
+        /// 绘制复杂类型（序列化类、数组、List）的字段，删除按钮固定在标题行
+        /// </summary>
+        private void DrawComplexTypeWithDeleteButton(SerializedProperty prop, float propertyHeight, bool hasDecorator, float buttonWidth, float buttonSpacing)
+        {
+            // 获取标题行高度
+            float headerHeight = EditorGUIUtility.singleLineHeight;
             if (hasDecorator)
             {
-                // 有装饰器的情况,需要手动布局
-                Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
-
-                // 绘制属性(包含装饰器)，限制宽度为按钮预留空间
-                Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
-                EditorGUI.PropertyField(propertyRect, prop, true);
-
-                // 绘制删除按钮 - 与最后一行对齐
-                Rect buttonRect = new Rect(
-                    fullRect.xMax - buttonWidth,
-                    fullRect.yMax - EditorGUIUtility.singleLineHeight,
-                    buttonWidth,
-                    EditorGUIUtility.singleLineHeight
-                );
-
-                Color oldColor = GUI.backgroundColor;
-                GUI.backgroundColor = Color.red;
-                if (GUI.Button(buttonRect, "x"))
+                // 如果有装饰器，需要计算装饰器的高度
+                var field = GetFieldFromProperty(prop);
+                if (field != null)
                 {
-                    string fieldName = prop.name;
-                    if (EditorUtility.DisplayDialog(
-                        "删除字段",
-                        $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
-                        "删除", "取消"))
+                    var headerAttrs = field.GetCustomAttributes<HeaderAttribute>();
+                    if (headerAttrs.Any())
                     {
-                        RemoveFieldFromScript(fieldName);
+                        headerHeight += 18f; // Header装饰器大约增加18像素
                     }
                 }
-                GUI.backgroundColor = oldColor;
             }
-            else
+
+            // 计算总的控件区域
+            Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
+
+            // 绘制属性，为按钮预留空间
+            Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
+            EditorGUI.PropertyField(propertyRect, prop, true);
+
+            // 删除按钮固定在标题区域的右侧
+            Rect buttonRect = new Rect(
+                fullRect.xMax - buttonWidth,
+                fullRect.y + (hasDecorator ? 18f : 0f), // 如果有装饰器，按钮下移到装饰器下方
+                buttonWidth,
+                EditorGUIUtility.singleLineHeight
+            );
+
+            // 绘制删除按钮
+            Color oldColor = GUI.backgroundColor;
+            GUI.backgroundColor = Color.red;
+            if (GUI.Button(buttonRect, "x"))
             {
-                // 普通字段，也使用 Rect 方式统一布局
-                Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
-
-                // 绘制属性
-                Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
-                EditorGUI.PropertyField(propertyRect, prop, true);
-
-                // 绘制删除按钮 - 位置和大小与有装饰器的情况完全一致
-                Rect buttonRect = new Rect(
-                    fullRect.xMax - buttonWidth,
-                    fullRect.y,
-                    buttonWidth,
-                    EditorGUIUtility.singleLineHeight
-                );
-
-                Color oldColor = GUI.backgroundColor;
-                GUI.backgroundColor = Color.red;
-                if (GUI.Button(buttonRect, "x"))
+                string fieldName = prop.name;
+                if (EditorUtility.DisplayDialog(
+                    "删除字段",
+                    $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
+                    "删除", "取消"))
                 {
-                    string fieldName = prop.name;
-                    if (EditorUtility.DisplayDialog(
-                        "删除字段",
-                        $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
-                        "删除", "取消"))
+                    RemoveFieldFromScript(fieldName);
+                }
+            }
+            GUI.backgroundColor = oldColor;
+        }
+
+        /// <summary>
+        /// 绘制有装饰器的简单类型
+        /// </summary>
+        private void DrawSimpleTypeWithDecoratorAndDeleteButton(SerializedProperty prop, float propertyHeight, float buttonWidth, float buttonSpacing)
+        {
+            Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
+
+            // 绘制属性(包含装饰器)，限制宽度为按钮预留空间
+            Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
+            EditorGUI.PropertyField(propertyRect, prop, true);
+
+            // 绘制删除按钮 - 与最后一行对齐
+            Rect buttonRect = new Rect(
+                fullRect.xMax - buttonWidth,
+                fullRect.yMax - EditorGUIUtility.singleLineHeight,
+                buttonWidth,
+                EditorGUIUtility.singleLineHeight
+            );
+
+            Color oldColor = GUI.backgroundColor;
+            GUI.backgroundColor = Color.red;
+            if (GUI.Button(buttonRect, "x"))
+            {
+                string fieldName = prop.name;
+                if (EditorUtility.DisplayDialog(
+                    "删除字段",
+                    $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
+                    "删除", "取消"))
+                {
+                    RemoveFieldFromScript(fieldName);
+                }
+            }
+            GUI.backgroundColor = oldColor;
+        }
+
+        /// <summary>
+        /// 绘制普通简单类型
+        /// </summary>
+        private void DrawSimpleTypeWithDeleteButton(SerializedProperty prop, float propertyHeight, float buttonWidth, float buttonSpacing)
+        {
+            Rect fullRect = EditorGUILayout.GetControlRect(true, propertyHeight);
+
+            // 绘制属性
+            Rect propertyRect = new Rect(fullRect.x, fullRect.y, fullRect.width - buttonWidth - buttonSpacing, fullRect.height);
+            EditorGUI.PropertyField(propertyRect, prop, true);
+
+            // 绘制删除按钮 - 位置和大小与有装饰器的情况完全一致
+            Rect buttonRect = new Rect(
+                fullRect.xMax - buttonWidth,
+                fullRect.y,
+                buttonWidth,
+                EditorGUIUtility.singleLineHeight
+            );
+
+            Color oldColor = GUI.backgroundColor;
+            GUI.backgroundColor = Color.red;
+            if (GUI.Button(buttonRect, "x"))
+            {
+                string fieldName = prop.name;
+                if (EditorUtility.DisplayDialog(
+                    "删除字段",
+                    $"确定要从代码中删除字段 '{fieldName}' 吗?\n\n此操作将从脚本文件中移除字段定义.",
+                    "删除", "取消"))
+                {
+                    RemoveFieldFromScript(fieldName);
+                }
+            }
+            GUI.backgroundColor = oldColor;
+        }
+
+        /// <summary>
+        /// 判断属性是否为复杂的可序列化类型（包括序列化类、数组、List等）
+        /// </summary>
+        private bool IsComplexSerializableType(SerializedProperty prop)
+        {
+            // 检查数组类型
+            if (prop.isArray && prop.propertyType != SerializedPropertyType.String)
+            {
+                return true;
+            }
+
+            // 检查属性类型是否为可序列化类
+            if (prop.propertyType == SerializedPropertyType.Generic)
+            {
+                // 获取字段类型
+                var field = GetFieldFromProperty(prop);
+                if (field != null)
+                {
+                    var fieldType = field.FieldType;
+
+                    // 检查是否为List<T>
+                    if (fieldType.IsGenericType && fieldType.GetGenericTypeDefinition() == typeof(List<>))
                     {
-                        RemoveFieldFromScript(fieldName);
+                        return true;
+                    }
+
+                    // 检查是否有 [System.Serializable] 特性或Unity的基本类型
+                    if (fieldType.IsClass &&
+                        !fieldType.IsSubclassOf(typeof(UnityEngine.Object)) &&
+                        (fieldType.GetCustomAttribute<System.SerializableAttribute>() != null ||
+                         IsUnitySerializableType(fieldType)))
+                    {
+                        return true;
                     }
                 }
-                GUI.backgroundColor = oldColor;
             }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 检查是否为Unity可序列化的类型
+        /// </summary>
+        private bool IsUnitySerializableType(System.Type type)
+        {
+            // Unity内置的可序列化类型
+            return type == typeof(Vector2) ||
+                   type == typeof(Vector3) ||
+                   type == typeof(Vector4) ||
+                   type == typeof(Quaternion) ||
+                   type == typeof(Color) ||
+                   type == typeof(Rect) ||
+                   type == typeof(AnimationCurve) ||
+                   type == typeof(Gradient);
+        }
+
+        /// <summary>
+        /// 从SerializedProperty获取对应的FieldInfo
+        /// </summary>
+        private System.Reflection.FieldInfo GetFieldFromProperty(SerializedProperty prop)
+        {
+            var targetType = prop.serializedObject.targetObject.GetType();
+            return targetType.GetField(prop.name,
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public);
         }
 
         /// <summary>
@@ -275,72 +449,7 @@ namespace FFramework.Editor
             }
         }
 
-        /// <summary>
-        /// 绘制虚线边框
-        /// </summary>
-        private void DrawDashedBorder(Rect rect)
-        {
-            // 保存原始颜色
-            var originalColor = Handles.color;
-
-            // 设置虚线颜色
-            Handles.color = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-
-            // 虚线参数
-            float dashSize = 3f;
-            float gapSize = 2f;
-
-            // 绘制上边
-            DrawDashedLine(
-                new Vector3(rect.x, rect.y, 0),
-                new Vector3(rect.x + rect.width, rect.y, 0),
-                dashSize, gapSize);
-
-            // 绘制下边
-            DrawDashedLine(
-                new Vector3(rect.x, rect.y + rect.height, 0),
-                new Vector3(rect.x + rect.width, rect.y + rect.height, 0),
-                dashSize, gapSize);
-
-            // 绘制左边
-            DrawDashedLine(
-                new Vector3(rect.x, rect.y, 0),
-                new Vector3(rect.x, rect.y + rect.height, 0),
-                dashSize, gapSize);
-
-            // 绘制右边
-            DrawDashedLine(
-                new Vector3(rect.x + rect.width, rect.y, 0),
-                new Vector3(rect.x + rect.width, rect.y + rect.height, 0),
-                dashSize, gapSize);
-
-            // 恢复原始颜色
-            Handles.color = originalColor;
-        }
-
-        /// <summary>
-        /// 绘制虚线
-        /// </summary>
-        private void DrawDashedLine(Vector3 start, Vector3 end, float dashSize, float gapSize)
-        {
-            Vector3 direction = (end - start).normalized;
-            float totalDistance = Vector3.Distance(start, end);
-            float currentDistance = 0;
-
-            while (currentDistance < totalDistance)
-            {
-                Vector3 dashStart = start + direction * currentDistance;
-                float remainingDistance = totalDistance - currentDistance;
-                float currentDashSize = Mathf.Min(dashSize, remainingDistance);
-                Vector3 dashEnd = dashStart + direction * currentDashSize;
-
-                Handles.DrawLine(dashStart, dashEnd);
-
-                currentDistance += dashSize + gapSize;
-            }
-        }
-
-        // 修复后的拖拽处理逻辑
+        // 修复后的拖拽处理逻辑 - 优化版
         private void HandleDragAndDrop(Rect dropRect)
         {
             Event evt = Event.current;
@@ -365,6 +474,12 @@ namespace FFramework.Editor
             // 更新拖拽视觉效果
             DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
 
+            // 在属性区域添加视觉反馈
+            if (evt.type == EventType.DragUpdated)
+            {
+                DrawDropZoneHighlight(dropRect);
+            }
+
             // 只在真正执行拖拽时处理
             if (evt.type == EventType.DragPerform)
             {
@@ -378,6 +493,30 @@ namespace FFramework.Editor
                 // 清理拖拽状态
                 DragAndDrop.PrepareStartDrag();
             }
+        }
+
+        /// <summary>
+        /// 绘制拖拽区域高亮效果
+        /// </summary>
+        private void DrawDropZoneHighlight(Rect dropRect)
+        {
+            // 保存原始颜色
+            var originalColor = Handles.color;
+
+            // 设置高亮颜色
+            Handles.color = new Color(0.3f, 0.8f, 1f, 0.3f);
+
+            // 绘制半透明覆盖层
+            Handles.DrawSolidRectangleWithOutline(dropRect,
+                new Color(0.3f, 0.8f, 1f, 0.1f), // 填充色
+                new Color(0.3f, 0.8f, 1f, 0.8f)  // 边框色
+            );
+
+            // 恢复原始颜色
+            Handles.color = originalColor;
+
+            // 强制重绘以显示高亮效果
+            Repaint();
         }
 
         // 处理拖拽对象的方法
@@ -500,11 +639,13 @@ namespace FFramework.Editor
                 string code = System.IO.File.ReadAllText(scriptPath);
                 string typeName = component.GetType().Name;
                 string usingNamespace = component.GetType().Namespace;
-                string fieldLine = $"         [SerializeField] private {typeName} {fieldName};";
+                string fieldLine = $"        [SerializeField] private {typeName} {fieldName};";
 
-                string newCode = ScriptModifier.InsertFieldIntoRegion(code, fieldLine, regionName: "字段");
+                // 修改这里：使用 insertAtEnd: true 参数，确保新字段添加在区域末尾
+                string newCode = ScriptModifier.InsertFieldIntoRegion(code, fieldLine, regionName: "字段", insertAtEnd: true);
                 newCode = ScriptModifier.EnsureUsing(newCode, usingNamespace);
                 newCode = ScriptModifier.EnsureUsing(newCode, "UnityEngine.UI");
+                newCode = ScriptModifier.EnsureUsing(newCode, "UnityEngine");
                 newCode = ScriptModifier.EnsureUsing(newCode, "TMPro");
 
                 System.IO.File.WriteAllText(scriptPath, newCode);
@@ -535,7 +676,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Unity Event Inspector
+        #region 事件监听区域
 
         /// <summary>
         /// 绘制UI事件检查器区域
@@ -756,7 +897,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Helper Drawing Methods - 优化版本
+        #region 辅助方法 - 组件列表绘制优化
 
         /// <summary>
         /// 绘制紧凑的UI组件项 - 主要优化方法
@@ -908,7 +1049,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Component Detail Methods
+        #region 组件详情弹窗
 
         /// <summary>
         /// 显示组件详情
@@ -1072,7 +1213,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Data Structures
+        #region 数据结构
         /// <summary>
         /// UI组件信息数据结构
         /// </summary>
@@ -1085,7 +1226,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Data Collection Methods
+        #region 数据收集方法
         /// <summary>
         /// 获取所有有事件绑定的UI组件
         /// </summary>
@@ -1183,7 +1324,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Listener Count Methods
+        #region 监听器计数方法
         private int GetListenerCount_Button(Button b)
         {
             if (b == null) return 0;
@@ -1254,7 +1395,7 @@ namespace FFramework.Editor
         }
         #endregion
 
-        #region Utility Methods
+        #region 辅助功能方法
         /// <summary>
         /// 打开脚本文件
         /// </summary>

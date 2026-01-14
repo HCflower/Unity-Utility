@@ -1,3 +1,9 @@
+// =============================================================
+// 描述：用于在Unity编辑器中显示一个现代化风格的组件选择窗口，允许用户从给定的组件列表中选择一个组件类型。
+// 作者：HCFlower
+// 创建时间：2025-12-13 12:00:00
+// 版本：1.0.1 
+// =============================================================
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +16,6 @@ namespace FFramework.Editor
     {
         private List<Component> components;
         private string objectName;
-        private Component result;  // 改为实例变量
         private Action<Component> onSelected;
         // IMGUI specific fields
         private int selectedIndex = 0;
@@ -82,26 +87,26 @@ namespace FFramework.Editor
 
             EditorGUILayout.BeginVertical(new GUIStyle { padding = new RectOffset(5, 5, 0, 0) });
 
-            // --- 标题区域 ---
+            // 标题区域
             EditorGUILayout.LabelField($"对象: {objectName}", titleStyle);
             EditorGUILayout.LabelField("请选择要绑定的组件类型:", subTitleStyle);
 
-            // --- 下拉选框区域 ---
+            // 下拉选框区域
             string[] options = components.Select(c => c != null ? c.GetType().Name : "空").ToArray();
 
             // 确保 selectedIndex 在有效范围内
             selectedIndex = Mathf.Clamp(selectedIndex, 0, options.Length - 1);
-            selectedIndex = EditorGUILayout.Popup(selectedIndex, options, GUILayout.Height(30));
+            selectedIndex = EditorGUILayout.Popup(selectedIndex, options, GUILayout.Height(22));
 
-            // --- 按钮区域 ---
+            // 按钮区域
             EditorGUILayout.BeginHorizontal();
-            float btnWidth = (position.width - 20) / 2f; // 15+15内边距+10间隔
+            float btnWidth = (position.width - 16) / 2f;
             if (GUILayout.Button("取消", GUILayout.Width(btnWidth), GUILayout.Height(24)))
             {
                 onSelected?.Invoke(null);
                 Close();
             }
-            GUILayout.Space(1);
+            GUILayout.Space(2);
             if (GUILayout.Button("确定", GUILayout.Width(btnWidth), GUILayout.Height(24)))
             {
                 ConfirmSelection();

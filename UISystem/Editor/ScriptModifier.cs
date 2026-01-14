@@ -1,3 +1,9 @@
+// =============================================================
+// 描述：用于修改C#脚本代码的辅助类，支持插入字段到指定#region区域、确保using指令存在以及移除字段定义等功能。
+// 作者：HCFlower
+// 创建时间：2025-12-13 12:00:00
+// 版本：1.0.1
+// =============================================================
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -7,7 +13,7 @@ namespace FFramework.Editor
     internal static class ScriptModifier
     {
         // 将字段插入到#region {regionName} ... #endregion 中；若不存在则创建该区域并插入到类内首行之后
-        public static string InsertFieldIntoRegion(string code, string fieldLine, string regionName = "字段")
+        public static string InsertFieldIntoRegion(string code, string fieldLine, string regionName = "字段", bool insertAtEnd = false)
         {
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(fieldLine)) return code;
 
@@ -16,15 +22,32 @@ namespace FFramework.Editor
 
             if (regionStart >= 0 && regionEnd > regionStart)
             {
-                // 插入到 #region 与 #endregion 内，靠近开头（避免跑到底部）
-                int insertPos = regionStart + ("#region " + regionName).Length;
-                // 找到该行行尾
-                insertPos = code.IndexOf('\n', insertPos);
-                if (insertPos < 0) insertPos = regionEnd;
+                int insertPos;
+
+                if (insertAtEnd)
+                {
+                    // 插入到 #endregion 之前
+                    insertPos = regionEnd;
+                    // 找到 #endregion 行的开始位置
+                    while (insertPos > 0 && code[insertPos - 1] != '\n')
+                    {
+                        insertPos--;
+                    }
+                }
+                else
+                {
+                    // 插入到 #region 之后（原有逻辑）
+                    insertPos = regionStart + ("#region " + regionName).Length;
+                    // 找到该行行尾
+                    insertPos = code.IndexOf('\n', insertPos);
+                    if (insertPos < 0) insertPos = regionEnd;
+                    insertPos++; // 移到下一行开始
+                }
+
                 var sb = new StringBuilder(code.Length + fieldLine.Length + 4);
-                sb.Append(code, 0, insertPos + 1);
+                sb.Append(code, 0, insertPos);
                 sb.AppendLine(fieldLine);
-                sb.Append(code, insertPos + 1, code.Length - (insertPos + 1));
+                sb.Append(code, insertPos, code.Length - insertPos);
                 return sb.ToString();
             }
 
